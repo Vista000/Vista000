@@ -15,13 +15,16 @@ import asyncio
 from dotenv import load_dotenv
 import aiohttp
 import tempfile
+from telegram.error import Conflict
 
 load_dotenv()
 keep_alive()
 
+# --- لاگینگ ---
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
+logging.info("🚀 Bot is starting...")
 
 # --- اطلاعات پایه ---
 TOKEN = os.environ["TOKEN"]
@@ -129,7 +132,14 @@ def get_full_link(grade, mode):
     }
     return mapping.get(mode, {}).get(grade)
 
-# --- هندلر پیام‌ها ---
+# --- هندل پیام /start جدا ---
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🎉 به ربات ویستانشر خوش اومدی!\nلطفاً پایه تحصیلی‌ت رو انتخاب کن:",
+        reply_markup=mainKeyboard,
+    )
+
+# --- هندلر پیام‌ها فقط برای پیام‌های متنی عادی ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     text = message.text.strip() if message and message.text else None
@@ -138,13 +148,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text:
         return
 
+    # حذف هندل /start از اینجا، چون جدا هندل می‌شود
     if text == "/start":
-        await message.reply_text(
-            "🎉 به ربات ویستانشر خوش اومدی!\nلطفاً پایه تحصیلی‌ت رو انتخاب کن:",
-            reply_markup=mainKeyboard,
-        )
+        return
 
-    elif text in ["نهم", "دهم", "یازدهم", "دوازدهم"]:
+    if text in ["نهم", "دهم", "یازدهم", "دوازدهم"]:
         user_grades[chat_id] = text
         if text == "دوازدهم":
             await message.reply_text("❌ فعلاً محتوای خاصی برای پایه دوازدهم آماده نیست.")
@@ -248,7 +256,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
 
-    if query.data.startswith("confirm_") and str(query.message.chat.id) == str(ADMIN_ID):
+    if query.data.startswith("confirm_") and str(update.effective_user.id) == str(ADMIN_ID):
         target_id = query.data.split("_")[1]
         grade, mode = user_grades.get(target_id), user_mode.get(target_id)
         full_link = get_full_link(grade, mode)
@@ -261,15 +269,30 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                     text=f"نسخه کامل شما:\n\n{full_link}\n\nموفق باشید! 🌟",
                 )
             except Exception as e:
-                print(f"[ERROR] Full file send fail: {e}")
+                logging.error(f"[ERROR] Full file send fail: {e}")
+
+
+# --- هندلر خطا با پاسخ ساده به کاربر ---
+async def error_handler(update, context):
+    if isinstance(context.error, Conflict):
+        logging.warning("⚠️ Conflict: یک نسخه دیگر از بات اجرا شده بود.")
+    else:
+        logging.error(msg="❌ خطای غیرمنتظره:", exc_info=context.error)
+
+    if update and update.effective_message:
+        try:
+            await update.effective_message.reply_text("❌ خطایی رخ داد. لطفاً دوباره تلاش کن.")
+        except Exception:
+            pass  # در صورت خطا در ارسال پیام، نادیده بگیر
 
 
 def main():
     application = ApplicationBuilder().token(TOKEN).build()
 
-    application.add_handler(CommandHandler("start", handle_message))
+    application.add_handler(CommandHandler("start", start_command))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.add_handler(CallbackQueryHandler(handle_callback_query))
+    application.add_error_handler(error_handler)
 
     application.run_polling()
 
