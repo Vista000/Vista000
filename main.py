@@ -9,7 +9,6 @@ from telegram.ext import (
     filters,
 )
 import os
-import time
 import logging
 import asyncio
 from dotenv import load_dotenv
@@ -148,7 +147,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not text:
         return
 
-    # حذف هندل /start از اینجا، چون جدا هندل می‌شود
     if text == "/start":
         return
 
@@ -209,7 +207,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             user_ready[chat_id] = True
-            # فقط لینک کامل رو برای کاربر بفرست
             await message.reply_text(
                 f"برای دریافت نسخه کامل روی لینک زیر کلیک کن:\n\n{full_link}\n\n"
                 + paymentInfo
@@ -263,7 +260,6 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
         if full_link:
             try:
-                # برای نسخه کامل فقط لینک رو میفرستیم (مثل پیام قبل)
                 await context.bot.send_message(
                     chat_id=int(target_id),
                     text=f"نسخه کامل شما:\n\n{full_link}\n\nموفق باشید! 🌟",
@@ -283,7 +279,7 @@ async def error_handler(update, context):
         try:
             await update.effective_message.reply_text("❌ خطایی رخ داد. لطفاً دوباره تلاش کن.")
         except Exception:
-            pass  # در صورت خطا در ارسال پیام، نادیده بگیر
+            pass
 
 
 def main():
