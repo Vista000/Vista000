@@ -12,7 +12,8 @@ import os
 import time
 import logging
 import asyncio
-
+from dotenv import load_dotenv
+load_dotenv()
 keep_alive()
 
 # --- تنظیمات لاگ ---
@@ -23,7 +24,8 @@ logging.basicConfig(
 # --- اطلاعات پایه ---
 TOKEN = os.environ["TOKEN"]
 ADMIN_ID = os.getenv("ADMIN_ID")
-SAMPLE_PATH, FULL_PATH = r"FREES", r"FULLS"
+AZMON11SAMPLE = os.getenv("AZMON11FREE")
+KETAB9SAMPLE = os.getenv("KETAB9SAMPLE")
 
 # --- پیام‌ها ---
 bookMessage = """📚 کتابچه چیه؟  
@@ -83,23 +85,27 @@ user_grades, user_ready, user_mode = {}, {}, {}
 def get_sample_filename(grade, mode):
     mapping = {
         "book": {
-            "نهم": "Ketabche9Sample.pdf",
-            "دهم": "Ketabche10Sample.pdf",
-            "یازدهم": "Ketabche11Sample.pdf",
+            "نهم": os.getenv("KETAB9SAMPLE"),
+            "دهم": os.getenv("KETAB10SAMPLE"),
+            "یازدهم":  os.getenv("KETAB11SAMPLE"),
         },
         "exam": {
-            "یازدهم": "Azmoonche11Sample.pdf",
+            "یازدهم": os.getenv("AZMON11SAMPLE"),
         },  # فقط یازدهم فعال است
     }
-    filename = mapping[mode].get(grade, "")
-    return os.path.join(SAMPLE_PATH, filename)
-
-
 def get_full_filename(grade, mode):
-    mapping = FULL_BOOKLETS if mode == "book" else FULL_EXAMS
-    filename = mapping.get(grade, "")
+    mapping = {
+        "book": {
+            "نهم": os.getenv("KETAB9FULL"),
+            "دهم": os.getenv("KETAB10FULL"),
+            "یازدهم": os.getenv("KETAB11FULL"),
+        },
+        "exam": {
+            "یازدهم": os.getenv("AZMON11FULL"),
+        },
+    }
+  filename = mapping[mode].get(grade, "")
     return os.path.join(FULL_PATH, filename)
-
 
 # --- هندلر پیام‌ها ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
