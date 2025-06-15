@@ -171,7 +171,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         sample_link = get_sample_link(grade, mode)
         if sample_link:
-            # ارسال فقط لینک نمونه بدون دانلود مستقیم
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=f"📄 نمونه فایل رو اینجا ببین:\n{sample_link}",
@@ -201,7 +200,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             user_ready[chat_id] = True
-            # فقط ارسال پیام پرداخت (بدون لینک کامل)
             await message.reply_text(paymentInfo)
 
     elif text == "ℹ️ معرفی":
@@ -213,7 +211,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text("بازگشتی موفقیت‌آمیز 😄", reply_markup=mainKeyboard)
 
     elif user_ready.get(chat_id):
-        # رسید واریز ارسال به ادمین
         try:
             await context.bot.send_message(
                 ADMIN_ID, f"📥 رسید از کاربر {chat_id} دریافت شد:"
@@ -240,7 +237,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=ADMIN_ID, from_chat_id=int(chat_id), message_id=message.message_id
         )
 
-
 # --- تأیید ادمین ---
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -248,20 +244,28 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
     if query.data.startswith("confirm_") and str(update.effective_user.id) == str(ADMIN_ID):
         target_id = query.data.split("_")[1]
-        grade, mode = user_grades.get(target_id), user_mode.get(target_id)
+        target_id_str = str(target_id)
+
+        grade = user_grades.get(target_id_str)
+        mode = user_mode.get(target_id_str)
         full_link = get_full_link(grade, mode)
 
-        if full_link:
-            try:
-                await context.bot.send_message(
-                    chat_id=int(target_id),
-                    text=f"نسخه کامل شما:\n\n{full_link}\n\nموفق باشید! 🌟",
-                )
-            except Exception as e:
-                logging.error(f"[ERROR] Full file send fail: {e}")
+        if not grade or not mode or not full_link:
+            await query.edit_message_text("❌ اطلاعات کاربر ناقص است یا فایل پیدا نشد.")
+            logging.warning(f"[WARNING] کاربر {target_id} اطلاعات ناقص دارد.")
+            return
 
+        try:
+            await context.bot.send_message(
+                chat_id=int(target_id),
+                text=f"✅ پرداخت شما تایید شد.\n\n📁 لینک دریافت نسخه کامل:\n{full_link}\n\n🌟 موفق باشید!",
+            )
+            await query.edit_message_text("✅ فایل کامل با موفقیت ارسال شد.")
+        except Exception as e:
+            logging.error(f"[ERROR] Full file send fail: {e}")
+            await query.edit_message_text("❌ خطا در ارسال فایل برای کاربر.")
 
-# --- هندلر خطا با پاسخ ساده به کاربر ---
+# --- هندلر خطا ---
 async def error_handler(update, context):
     if isinstance(context.error, Conflict):
         logging.warning("⚠️ Conflict: یک نسخه دیگر از بات اجرا شده بود.")
@@ -274,17 +278,13 @@ async def error_handler(update, context):
         except Exception:
             pass
 
-
 def main():
     application = ApplicationBuilder().token(TOKEN).build()
-
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
     application.add_handler(CallbackQueryHandler(handle_callback_query))
     application.add_error_handler(error_handler)
-
     application.run_polling()
-
 
 if __name__ == "__main__":
     main()
