@@ -1,4 +1,1 @@
-git add runtime.txt
-git commit -m "fix: specify python version to avoid imghdr error"
 python-3.10.9
-git push
