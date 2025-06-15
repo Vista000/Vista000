@@ -85,23 +85,15 @@ backOnlyKeyboard = ReplyKeyboardMarkup([["🔙 بازگشت"]], resize_keyboard=
 # --- وضعیت کاربران ---
 user_grades, user_ready, user_mode = {}, {}, {}
 
-# --- دانلود و ارسال فایل از لینک (async) ---
-async def send_file_from_url(bot, chat_id, url, caption=None):
+# --- ارسال لینک نمونه (بدون دانلود مستقیم) ---
+async def send_link_sample(bot, chat_id, url, caption=None):
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    tmp = tempfile.NamedTemporaryFile(delete=False)
-                    data = await resp.read()
-                    tmp.write(data)
-                    tmp.close()
-                    with open(tmp.name, "rb") as f:
-                        await bot.send_document(chat_id=chat_id, document=f, caption=caption)
-                    os.unlink(tmp.name)
-                else:
-                    await bot.send_message(chat_id, "❌ خطا در دانلود فایل نمونه!")
+        if caption:
+            await bot.send_message(chat_id=chat_id, text=f"{caption}\n{url}")
+        else:
+            await bot.send_message(chat_id=chat_id, text=url)
     except Exception as e:
-        await bot.send_message(chat_id, f"❌ خطا در ارسال فایل: {e}")
+        await bot.send_message(chat_id, f"❌ خطا در ارسال لینک نمونه: {e}")
 
 # --- گرفتن لینک نمونه از env ---
 def get_sample_link(grade, mode):
@@ -179,8 +171,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         sample_link = get_sample_link(grade, mode)
         if sample_link:
-            await send_file_from_url(
-                context.bot, chat_id, sample_link, caption="📄 نمونه فایل رو ببین!"
+            # ارسال فقط لینک نمونه بدون دانلود مستقیم
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"📄 نمونه فایل رو اینجا ببین:\n{sample_link}",
             )
             full_link = get_full_link(grade, mode)
             if full_link:
@@ -207,10 +201,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             user_ready[chat_id] = True
-            await message.reply_text(
-                f"برای دریافت نسخه کامل روی لینک زیر کلیک کن:\n\n{full_link}\n\n"
-                + paymentInfo
-            )
+            # فقط ارسال پیام پرداخت (بدون لینک کامل)
+            await message.reply_text(paymentInfo)
 
     elif text == "ℹ️ معرفی":
         await message.reply_text(
@@ -221,6 +213,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text("بازگشتی موفقیت‌آمیز 😄", reply_markup=mainKeyboard)
 
     elif user_ready.get(chat_id):
+        # رسید واریز ارسال به ادمین
         try:
             await context.bot.send_message(
                 ADMIN_ID, f"📥 رسید از کاربر {chat_id} دریافت شد:"
