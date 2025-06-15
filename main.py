@@ -27,7 +27,7 @@ logging.info("🚀 Bot is starting...")
 
 # --- اطلاعات پایه ---
 TOKEN = os.environ["TOKEN"]
-ADMIN_ID = os.getenv("ADMIN_ID")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
 AZMON11SAMPLE = os.getenv("AZMON11SAMPLE")
 KETAB9SAMPLE = os.getenv("KETAB9SAMPLE")
 KETAB10SAMPLE = os.getenv("KETAB10SAMPLE")
