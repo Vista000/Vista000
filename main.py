@@ -22,7 +22,7 @@ logging.basicConfig(
 
 # --- اطلاعات پایه ---
 TOKEN = os.environ["TOKEN"]
-ADMIN_ID = 458173350
+ADMIN_ID = os.getenv("ADMIN_ID")
 SAMPLE_PATH, FULL_PATH = r"FREES", r"FULLS"
 
 # --- پیام‌ها ---
