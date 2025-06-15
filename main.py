@@ -1,11 +1,11 @@
-# from keepalive import keep_alive
+from keepalive import keep_alive
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Updater, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 import os
 import time
 import logging
 
-# keep_alive()
+keep_alive()
 
 # --- تنظیمات لاگ ---
 logging.basicConfig(
