@@ -13,10 +13,12 @@ import time
 import logging
 import asyncio
 from dotenv import load_dotenv
+import aiohttp
+import tempfile
+
 load_dotenv()
 keep_alive()
 
-# --- تنظیمات لاگ ---
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
@@ -24,8 +26,16 @@ logging.basicConfig(
 # --- اطلاعات پایه ---
 TOKEN = os.environ["TOKEN"]
 ADMIN_ID = os.getenv("ADMIN_ID")
-AZMON11SAMPLE = os.getenv("AZMON11FREE")
+AZMON11SAMPLE = os.getenv("AZMON11SAMPLE")
 KETAB9SAMPLE = os.getenv("KETAB9SAMPLE")
+KETAB10SAMPLE = os.getenv("KETAB10SAMPLE")
+KETAB11SAMPLE = os.getenv("KETAB11SAMPLE")
+
+KETAB9FULL = os.getenv("KETAB9FULL")
+KETAB10FULL = os.getenv("KETAB10FULL")
+KETAB11FULL = os.getenv("KETAB11FULL")
+
+AZMON11FULL = os.getenv("AZMON11FULL")
 
 # --- پیام‌ها ---
 bookMessage = """📚 کتابچه چیه؟  
@@ -58,13 +68,6 @@ paymentInfo = """💳 دمت گرم که یه قدم جدی به سمت نمره
 
 🟡 ربات خودش رسید رو میفرسته برای ادمین. بعد از تایید ادمین، فایل کامل بدون هیچ مشکلی برات ارسال میشه. :>"""
 
-FULL_BOOKLETS = {
-    "نهم": "KetabcheFull9.pdf",
-    "دهم": "KetabcheFull10.pdf",
-    "یازدهم": "KetabcheFull11.pdf",
-}
-FULL_EXAMS = {"یازدهم": "AzmooncheFull11.pdf"}  # فقط یازدهم فعال است
-
 # --- کیبوردها ---
 mainKeyboard = ReplyKeyboardMarkup(
     [["نهم", "دهم"], ["یازدهم", "دوازدهم"], ["ℹ️ معرفی"]], resize_keyboard=True
@@ -80,32 +83,51 @@ backOnlyKeyboard = ReplyKeyboardMarkup([["🔙 بازگشت"]], resize_keyboard=
 # --- وضعیت کاربران ---
 user_grades, user_ready, user_mode = {}, {}, {}
 
+# --- دانلود و ارسال فایل از لینک (async) ---
+async def send_file_from_url(bot, chat_id, url, caption=None):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    tmp = tempfile.NamedTemporaryFile(delete=False)
+                    data = await resp.read()
+                    tmp.write(data)
+                    tmp.close()
+                    with open(tmp.name, "rb") as f:
+                        await bot.send_document(chat_id=chat_id, document=f, caption=caption)
+                    os.unlink(tmp.name)
+                else:
+                    await bot.send_message(chat_id, "❌ خطا در دانلود فایل نمونه!")
+    except Exception as e:
+        await bot.send_message(chat_id, f"❌ خطا در ارسال فایل: {e}")
 
-# --- فایل‌ها ---
-def get_sample_filename(grade, mode):
+# --- گرفتن لینک نمونه از env ---
+def get_sample_link(grade, mode):
     mapping = {
         "book": {
-            "نهم": os.getenv("KETAB9SAMPLE"),
-            "دهم": os.getenv("KETAB10SAMPLE"),
-            "یازدهم":  os.getenv("KETAB11SAMPLE"),
+            "نهم": KETAB9SAMPLE,
+            "دهم": KETAB10SAMPLE,
+            "یازدهم": KETAB11SAMPLE,
         },
         "exam": {
-            "یازدهم": os.getenv("AZMON11SAMPLE"),
-        },  # فقط یازدهم فعال است
+            "یازدهم": AZMON11SAMPLE,
+        },
     }
-def get_full_filename(grade, mode):
+    return mapping.get(mode, {}).get(grade)
+
+# --- گرفتن لینک کامل از env ---
+def get_full_link(grade, mode):
     mapping = {
         "book": {
-            "نهم": os.getenv("KETAB9FULL"),
-            "دهم": os.getenv("KETAB10FULL"),
-            "یازدهم": os.getenv("KETAB11FULL"),
+            "نهم": KETAB9FULL,
+            "دهم": KETAB10FULL,
+            "یازدهم": KETAB11FULL,
         },
         "exam": {
-            "یازدهم": os.getenv("AZMON11FULL"),
+            "یازدهم": AZMON11FULL,
         },
     }
-  filename = mapping[mode].get(grade, "")
-    return os.path.join(FULL_PATH, filename)
+    return mapping.get(mode, {}).get(grade)
 
 # --- هندلر پیام‌ها ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -114,7 +136,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
 
     if not text:
-        return  # اگر متن نیست، هیچی نکن
+        return
 
     if text == "/start":
         await message.reply_text(
@@ -149,41 +171,41 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text(bookMessage if mode == "book" else examMessage)
         await context.bot.send_message(chat_id=chat_id, text=sampleReminder)
 
-        filepath = get_sample_filename(grade, mode)
-        if os.path.exists(filepath):
-            try:
-                with open(filepath, "rb") as doc:
-                    await context.bot.send_document(
-                        chat_id=chat_id, document=doc, caption="📄 نمونه فایل رو ببین!"
-                    )
-                await asyncio.sleep(0.5)
-                if get_full_filename(grade, mode):
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text="آماده‌ای برای دریافت نسخه کامل؟ 👇",
-                        reply_markup=readyKeyboard,
-                    )
-                else:
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text="⚠️ نسخه کامل فعلاً آماده نیست.",
-                        reply_markup=backOnlyKeyboard,
-                    )
-            except Exception as e:
-                print(f"[ERROR] Sample send fail: {e}")
-                await message.reply_text("❌ مشکل در ارسال فایل. لطفاً به ادمین پیام بده.")
+        sample_link = get_sample_link(grade, mode)
+        if sample_link:
+            await send_file_from_url(
+                context.bot, chat_id, sample_link, caption="📄 نمونه فایل رو ببین!"
+            )
+            full_link = get_full_link(grade, mode)
+            if full_link:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="آماده‌ای برای دریافت نسخه کامل؟ 👇",
+                    reply_markup=readyKeyboard,
+                )
+            else:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="⚠️ نسخه کامل فعلاً آماده نیست.",
+                    reply_markup=backOnlyKeyboard,
+                )
         else:
             await message.reply_text("❌ فایل نمونه موجود نیست. لطفاً به ادمین پیام بده.")
 
     elif text == "✅ معلومه که آماده‌م!":
         grade, mode = user_grades.get(chat_id), user_mode.get(chat_id)
-        if not get_full_filename(grade, mode):
+        full_link = get_full_link(grade, mode)
+        if not full_link:
             await message.reply_text(
                 "⛔ نسخه کامل برای این پایه فعلاً آماده نیست.", reply_markup=backOnlyKeyboard
             )
         else:
             user_ready[chat_id] = True
-            await message.reply_text(paymentInfo)
+            # فقط لینک کامل رو برای کاربر بفرست
+            await message.reply_text(
+                f"برای دریافت نسخه کامل روی لینک زیر کلیک کن:\n\n{full_link}\n\n"
+                + paymentInfo
+            )
 
     elif text == "ℹ️ معرفی":
         await message.reply_text(
@@ -229,27 +251,19 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     if query.data.startswith("confirm_") and str(query.message.chat.id) == str(ADMIN_ID):
         target_id = query.data.split("_")[1]
         grade, mode = user_grades.get(target_id), user_mode.get(target_id)
-        filepath = get_full_filename(grade, mode)
+        full_link = get_full_link(grade, mode)
 
-        if filepath and os.path.exists(filepath):
+        if full_link:
             try:
-                with open(filepath, "rb") as doc:
-                    await context.bot.send_document(
-                        chat_id=int(target_id),
-                        document=doc,
-                        caption="📦 نسخه کامل آماده‌ست. موفق باشی! 🌟",
-                    )
+                # برای نسخه کامل فقط لینک رو میفرستیم (مثل پیام قبل)
                 await context.bot.send_message(
                     chat_id=int(target_id),
-                    text=(
-                        " ✅ پرداختت تأیید شد و فایل برات ارسال شد. هرسوالی داشتی میتونی خیلی راحت از ادمین بپرسی.امیدوارم بخونی، خوشت بیاد و حتما بهم پیام بدی! 😊"
-                    ),
+                    text=f"نسخه کامل شما:\n\n{full_link}\n\nموفق باشید! 🌟",
                 )
             except Exception as e:
                 print(f"[ERROR] Full file send fail: {e}")
 
 
-# --- اجرای ربات ---
 def main():
     application = ApplicationBuilder().token(TOKEN).build()
 
